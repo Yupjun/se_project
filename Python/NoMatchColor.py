@@ -3,6 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 
+################################
+################################
+# Class명    : GatherColorInformation
+# 작성자    : 이현지
+# 설명      : user가 입력한 이미지를 분석하여 색 띠 반환
+# 참고한 코드 출처 : https://buzzrobot.com/dominant-colors-in-an-image-using-k-means-clustering-3c7af4622036
+################################
+################################
 class GatherColorInformation:
 
     CLUSTERS = None
@@ -14,6 +22,8 @@ class GatherColorInformation:
         self.CLUSTERS = clusters
         self.IMAGE = image
 
+    #kmeans clustering 알고리즘을 이용하여 각 픽셀 처리
+    #cluster값은 5로 제시한다.
     def dominantColors(self):
         img = cv2.imread(self.IMAGE)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -23,29 +33,28 @@ class GatherColorInformation:
 
         return kmeans
 
+    # clusters=5에 따라 5개의 색상(r,g,b)을 return 하게 된다.
     def getRGB(self, kmeans):
         self.COLORS = kmeans.cluster_centers_
         self.LABELS = kmeans.labels_
 
         return self.COLORS.astype(int)
 
+    #히스토그램으로 표현하기
     def intoHistogram(self, kmeans):
         numLabels = np.arange(0, self.CLUSTERS+1)
         (hist, _)=np.histogram(self.LABELS, bins=numLabels)
 
-        #normalize histogram
         hist=hist.astype("float")
         hist /= hist.sum()
 
         return hist
 
+    #색상이 차지하는 비율 순으로 정렬한 후, 이를 바탕으로 색 띠를 생성하여 리턴한다
     def plot_colors(self, hist, centroids):
         colors=self.COLORS
-        print("colors:", colors)
-        print("hist:", hist)
         colors=colors[(-hist).argsort()]
         hist=hist[(-hist).argsort()]
-        print("sort: ", colors)
 
         bar=np.zeros((50,500,3), dtype="uint8")
         startX=0
@@ -62,6 +71,13 @@ class GatherColorInformation:
 
         return bar
 
+################################
+################################
+# Class명    : Compare
+# 작성자    : 이현지
+# 설명      : 두 이미지를 분석한 색상 결과를 비교
+################################
+################################
 class Compare:
 
     colorA=None
@@ -71,6 +87,8 @@ class Compare:
         self.colorA=colors[0]
         self.colorB=colors[1]
 
+    #두 이미지를 분석한 결과로 나온 dominant colors들을 비교
+    #색상이 일치하지 않으면서, 이미지 내에서 차지하는 비율이 큰 색상을 no match color로 선정한다.
     def getNoMatchColor(self):
         noMatches = []
         for color in self.colorA:
@@ -82,9 +100,14 @@ class Compare:
         return noMatchColor
 
 
-#Class명: ImageProducing
-#input: noMatchColor, user 방 이미지
-#output: user 방 이미지에 차이나는 색상만 강조되어 보여지는 이미지
+################################
+################################
+# Class명    : ImageProducing
+# 작성자    : 이현지
+# 설명      : no match color 영역을 이미지에서 찾아 표시한다
+# 참고한 코드 출처 : https://www.pyimagesearch.com/2014/08/04/opencv-python-color-detection/
+################################
+################################
 class ImageProducing:
 
     IMAGE = None
@@ -99,56 +122,10 @@ class ImageProducing:
         #rgb순으로 표현되어있는 color를 bgr형태로 변환
         [b,g,r]=[color[2],color[1],color[0]]
         bgrColor=np.uint8([[[b,g,r]]])
-        print(bgrColor)
 
         #색상 추출을 위해 bgr을 hsv로 변환
         hsv_noMatch=cv2.cvtColor(bgrColor, cv2.COLOR_BGR2HSV)
-        print("hsv:", hsv_noMatch)
-        '''
-        [r,g,b]=[color[0], color[1], color[2]]
 
-        [h,s,v]=[0,0,0]
-        v = max(r, g, b)
-        if(v!=0):
-            s=(v-min(r,g,b))
-        else:
-            s=0
-
-        if(v==r):
-            h=((g-b)*60)/s
-        elif(v==g):
-            h=120+((b-r)*60)/s
-        else:
-            h=240+((r-g)*60)/s
-
-        if(h<0):
-            h=h+360
-
-        hsv_noMatch = np.uint8([[[h,s,v]]])
-
-        '''
-        '''
-        alist = []
-        aa = float(r / 255)
-        ab = float(g / 255)
-        ac = float(b / 255)
-        alist.append(aa)
-        alist.append(ab)
-        alist.append(ac)
-        alist.sort()
-        aMax = alist[0]
-        aMin = alist[2]
-        aaaa = aMax - aMin
-        h = int(60 * (((alist[1] - alist[0]) / aaaa) + 2))
-        s = int(aaaa / aMax)
-        v = int(aMax)
-        if (g > r > b):
-            h = int(60 * (((ac - aa) / aaaa) + 2))
-            s = int(aaaa / aMax)
-            v = int(aMax)
-        '''
-
-        print("noMatch:", hsv_noMatch)
         #색상의 min hsv, max hsv 범위 추출
         min_h=hsv_noMatch[0][0][0]-10
         min_noMatch=np.array([min_h, 100, 100])
@@ -159,21 +136,19 @@ class ImageProducing:
         noMatch=cv2.inRange(hsv, min_noMatch, max_noMatch)
         noMatch=cv2.dilate(noMatch, kernel)
 
+        #no match color 영역 표시하기
         (_, contours, hierarchy) = cv2.findContours(noMatch, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         for pic, contour in enumerate(contours):
             area = cv2.contourArea(contour)
             if (area > 150):
-                #image = cv2.drawContours(image, contour, -1, (0, 0, 255), 3)
-                #x, y, w, h = cv2.boundingRect(contour)
-                #image = cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 1)
                 ellipse=cv2.fitEllipse(contour)
                 cv2.ellipse(self.IMAGE, ellipse, (0,0,255),1, cv2.LINE_AA)
 
         cv2.imshow('marked image', self.IMAGE)
 
 
-user='room2.jpg'
-ideal='room6.jpg'
+user='../images/NoMatch_testImage/room2.jpg'
+ideal='../images/NoMatch_testImage/room6.jpg'
 testimage='testimage.jpg'
 images=[user, ideal]
 colors=[]
@@ -189,14 +164,13 @@ for i in range(len(images)):
     bar=colorInfo.plot_colors(hist, kmeans.cluster_centers_)
     bars.append(bar)
 
-print(colors)
+
 cmp=Compare(colors)
 noMatch=cmp.getNoMatchColor()
-print(noMatch)
 
 #이미지 display
-userRoom=cv2.imread('room2.jpg')
-idealRoom=cv2.imread('room6.jpg')
+userRoom=cv2.imread('../images/NoMatch_testImage/room2.jpg')
+idealRoom=cv2.imread('../images/NoMatch_testImage/room6.jpg')
 
 cv2.imshow('user room', userRoom)
 if(len(images)==2):
@@ -208,9 +182,6 @@ for i in range(len(images)):
     plt.imshow(bars[i])
 plt.show()
 
-
-#noMatch 이미지에 표시하기
-print("noMatch:", noMatch)
 mark=ImageProducing(images[0])
 mark.markNoMatchColor(noMatch)
 
